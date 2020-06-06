@@ -1,25 +1,199 @@
 ---
-title: "Reproducible Research: Peer Assessment 1"
-output: 
-  html_document:
-    keep_md: true
+title: "PA1_template.Rmd"
+author: "hhp94"
+date: "6/6/2020"
+output: html_document
 ---
 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,include = TRUE)
+```
+```{r, results = "hide", echo = FALSE, message=FALSE, warning=FALSE}
+install_function<- function(x){
+        list.of.packages <- x
+        new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
+        if(length(new.packages)) {install.packages(new.packages)}
+}
+x<-c("tidyverse", "xtable","data.table", "lubridate","gridExtra")
 
-## Loading and preprocessing the data
+install_function(x)
+
+library("tidyverse")
+library("xtable")
+library("data.table")
+library("lubridate")
+library("gridExtra")
+```
+
+Loaded packages:  
+1. "tidyverse"  
+2. "xtable"  
+3. "data.table"  
+4. "lubridate"  
+5. "gridExtra"    
+
+# I. Import:
+## 1. Download the file
+```{r, results = "hide"}
+url<-"https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip"
+download.file(url, destfile = "./activity.zip", method = "curl")
+
+activity<-read_csv("./activity.zip")
+```
+
+## 2. Summaries:{#anchor_1}
+```{r}
+summary(activity)
+```
+
+# II. Questions:
+## 1. What is mean total number of steps taken per day?
+### a. Calculate the total number of steps taken per day
+We use dplyr and ggplot 2 to make the data frame and histogram.   
+```{r}
+df_1<- activity %>% select(steps, date) %>%
+        group_by(date = floor_date(date,"1 days")) %>%
+        summarize(sum(steps, na.rm = TRUE))
+
+names(df_1)<-c("date","steps")  
+
+plot_1<-ggplot(df_1, aes(x=steps))+
+        geom_histogram(binwidth=707, fill="#69b3a2", color="#e9ecef")+
+        labs(x = "Number of steps/day with NA", y = "Frequency")+
+        theme_bw()
+```
+
+Results:  
+```{r, fig.align='center', fig.width= 7, fig.height= 7}
+plot_1
+```
+
+### b. Mean and median of total number of steps each day.
+We create a new data frame in the form of a function. 
+```{r}
+func_1<-function(x){
+        df_2<- x %>%
+                filter(steps > 0) %>%
+                summarize("mean (steps)" = mean(x$steps))
+        df_3<- x %>%
+                summarize("median (steps)"= median(x$steps))
+        df_4<- bind_cols(df_2,df_3)
+        df_4
+}
+
+```
+
+Results
+```{r, fig.align='center'}
+knitr::kable(func_1(df_1))
+```
+
+## 2. What is the average daily activity pattern?
+### a. Make a time series plot of the 5-minute interval and the average number of steps taken
+Create a  separate data frame using dplyr, and find the maximum
+```{r}
+df_2<- activity %>% select(steps, interval) %>%
+        filter(!is.na(steps)) %>% 
+        group_by(interval) %>%
+        summarize(mean(steps, na.rm = TRUE))
+
+names(df_2)<-c("interval","steps")
+
+max_int<- df_2 %>% 
+        filter(steps == max(steps))
+max_int
+```
+
+We then plot the data frame using ggplot2
+```{r, fig.align= 'center', fig.width= 7, fig.height= 7}
+plot_2<- ggplot(df_2, aes(interval,steps))+
+        geom_line(size = 0.65)+
+        labs(x = "Time, in 5-minute intervals", y = "Number of steps", title = "Average Number of steps per interval")+
+        geom_vline(xintercept = max_int$interval, color = "red")+
+        annotate("text", label = "Max steps on avg. (x=835, y=206)", x = 1500, y = 206, size = 5, colour = "red")+
+        theme_light()
+plot_2
+```
+
+### b. Which 5-minute interval, on average across all the days in the dataset, contains the max number of steps?
+From the plot, we can see that the interval 835 minute has the highest avg number of steps at 206 steps
+
+## 3. Imputing missing values 
+### a. What is total number of rows with NA?
+From looking at the [summary](#anchor_1), we can see that there are 2304 rows with NAs. 
+
+### b. Decide on a strategy to fill the missing values in the dataset
+I decided to use the mean for that 5-minute interval. 
+
+### c. Create the new dataset for the missing data to be filled in
+The strategy for imputing NA is as follows:
+```{r}
+func_impute<-function(x){
+        dat_filled <- left_join(activity, df_2, "interval")             #Left join the full data with the mean step by interval data 
+        processed<-sapply(x, function(y){                               #Sequentially, for any NA in the step column, replace that
+                if(is.na(dat_filled[y,1])){                             #NA with the mean at that row's interval in a new column
+                        dat_filled[y,1] <- dat_filled[y,4]
+                        }
+                else(dat_filled[y,1])
+                })
+        processed<-unname(processed)                                    #using sapply resulted in a list
+        merged_vect<-sapply(processed, rbind)                           #row bind the list to make a full data frame
+        new_tibble<- activity %>%
+                select(-steps) %>%
+                mutate(steps = merged_vect)                             #drop the old column with NA
+}        
+merged_df<- func_impute(seq_along(activity$steps))
+summary(merged_df)
+```
+
+We are good to go!
+
+### d. Repeat part II. 1. for this new dataset
+```{r}
+df_3<- merged_df %>% select(steps, date) %>%
+        group_by(date = floor_date(date,"1 days")) %>%
+        summarize(sum(steps, na.rm = TRUE))
+
+names(df_3)<-c("date","steps")  
+
+plot_3<-ggplot(df_3, aes(x=steps))+
+        geom_histogram(binwidth=707, fill="orange", color="red")+
+        labs(x = "Number of steps/day with NA REMOVED", y = "Frequency")+
+        theme_bw()
+```
+
+Results:  
+```{r, fig.align='center', fig.width= 7, fig.height= 7}
+plot_3
+```
+
+Then we check the mean and median:
+```{r, fig.align='center'}
+knitr::kable(func_1(df_3))
+```
+
+We can see that this these values differ greatly from the estimates of the first part of the assignment. The NAs significantly lowered the mean and median towards 0.  
+
+## 4. Are there differences in activity patterns between weekdays and weekends?
+### a. Create a new factor variable in the dataset with two levels - "weekday" and "weekend"
+We can easily use dplyr to solve this problem
+```{r}
+merged_df_ft<- merged_df %>% 
+        mutate(date_ft = fct_collapse(as.factor(wday(merged_df$date)),weekday = c("2","3","4","5","6"), weekend = c("1","7"))) %>%
+        group_by(interval, date_ft) %>%
+        summarize(mean(steps, na.rm = TRUE))
+names(merged_df_ft)<-c("interval","date_ft","steps")
+plot_4<- ggplot(merged_df_ft, aes(interval,steps))+
+        geom_line(size = 0.65)+
+        labs(x = "Time, in 5-minute intervals", y = "Number of steps", title = "Average Number of steps per interval")+
+        facet_grid(merged_df_ft$date_ft~.)+
+        theme_light()+
+        theme(strip.text = element_text(colour = "red", size = 15))
+```
+
+We then plot the data frame using ggplot2
+```{r, fig.align= 'center', fig.width= 7, fig.height= 7}
+plot_4
+```
 
 
-
-## What is mean total number of steps taken per day?
-
-
-
-## What is the average daily activity pattern?
-
-
-
-## Imputing missing values
-
-
-
-## Are there differences in activity patterns between weekdays and weekends?
