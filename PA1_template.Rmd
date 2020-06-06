@@ -73,7 +73,6 @@ We create a new data frame in the form of a function.
 ```{r}
 func_1<-function(x){
         df_2<- x %>%
-                filter(steps > 0) %>%
                 summarize("mean (steps)" = mean(x$steps))
         df_3<- x %>%
                 summarize("median (steps)"= median(x$steps))
@@ -195,5 +194,32 @@ We then plot the data frame using ggplot2
 ```{r, fig.align= 'center', fig.width= 7, fig.height= 7}
 plot_4
 ```
+
+```{r}
+png(file = "Histogram of Total Number of Steps_day.png", width = 640, height = 480)
+plot_1
+dev.off()
+
+write_csv(func_1(df_1),"Mean and Median of total steps each day.csv")
+
+png(file = "Time series plot of average number of steps per interval.png", width = 640, height = 480)
+plot_2
+dev.off()
+
+png(file = "Histogram of Total Number of Steps per day WITHOUT NA.png", width = 640, height = 480)
+plot_3
+dev.off()
+
+write_csv(func_1(df_3), "Mean and Median of total steps each day NA REMOVED.csv")
+
+png(file = "Time series plot of average number of steps per interval by weekday.png", width = 640, height = 480)
+plot_4
+dev.off()
+```
+
+
+
+
+
 
 
